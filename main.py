@@ -1,6 +1,7 @@
 import os
 import json
 from groq import Groq
+import google.generativeai as genai
 from collections import Counter
 from typing import List
 from dotenv import load_dotenv
@@ -32,11 +33,13 @@ def process_image_question(image_url: str, api_key: str = None) -> List[str]:
     text_extraction_model = "meta-llama/llama-4-maverick-17b-128e-instruct"
     
     # Models for answering the question (text-to-text)
+    # Note: "gemini" is a special marker for Gemini API, others use Groq
     answer_models = [
         "qwen/qwen3-32b",
-        "llama3-70b-8192",
-        "deepseek-r1-distill-llama-70b",
-        "gemma2-9b-it"
+        "llama-3.3-70b-versatile",
+        "llama-3.1-70b-versatile",  # Replacement for decommissioned deepseek-r1-distill-llama-70b
+        "openai/gpt-oss-120b",
+        "gemini"  # Uses Google Gemini API
     ]
     
     # System prompt for text extraction
@@ -78,30 +81,73 @@ def process_image_question(image_url: str, api_key: str = None) -> List[str]:
         )
         extracted_text = text_extraction_completion.choices[0].message.content
     except Exception as e:
-        raise RuntimeError(f"Error extracting text with {text_extraction_model}: {str(e)}")
+        raise RuntimeError(f"Error extracting text with {text_extraction_model}: {str(e)}. Image may not be accessible.")
     
     # Step 2: Query text-to-text models with extracted text
     all_responses = []
     
+    # Initialize Gemini client if API key is available
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    gemini_client = None
+    if gemini_api_key:
+        try:
+            genai.configure(api_key=gemini_api_key)
+            gemini_client = genai.GenerativeModel('gemini-2.5-flash')
+        except Exception as e:
+            print(f"Warning: Failed to initialize Gemini client: {str(e)}")
+    
     for model in answer_models:
         try:
-            completion = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": answer_prompt},
-                    {
-                        "role": "user",
-                        "content": f"Question and options:\n{extracted_text}\n\nProvide the correct answer(s) in JSON format."
+            if model == "gemini":
+                # Use Gemini API
+                if gemini_client is None:
+                    print("Warning: Gemini API key not set, skipping Gemini model")
+                    continue
+                
+                prompt = f"{answer_prompt}\n\nQuestion and options:\n{extracted_text}\n\nProvide the correct answer(s) in JSON format."
+                response = gemini_client.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.5,
+                        "max_output_tokens": 1024,
                     }
-                ],
-                temperature=0.5,
-                max_completion_tokens=1024,
-                response_format={"type": "json_object"}
-            )
-            
-            response = completion.choices[0].message.content
-            response_json = json.loads(response)
-            correct_answers = response_json.get("correct_answers", [])
+                )
+                
+                response_text = response.text.strip()
+                # Try to extract JSON from response (Gemini might add extra text)
+                try:
+                    # Look for JSON object in the response
+                    start_idx = response_text.find('{')
+                    end_idx = response_text.rfind('}') + 1
+                    if start_idx != -1 and end_idx > start_idx:
+                        response_text = response_text[start_idx:end_idx]
+                    response_json = json.loads(response_text)
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, try to extract answers from text
+                    print(f"Warning: Gemini response is not valid JSON: {response_text}")
+                    continue
+                
+                correct_answers = response_json.get("correct_answers", [])
+                
+            else:
+                # Use Groq API for other models
+                completion = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": answer_prompt},
+                        {
+                            "role": "user",
+                            "content": f"Question and options:\n{extracted_text}\n\nProvide the correct answer(s) in JSON format."
+                        }
+                    ],
+                    temperature=0.5,
+                    max_completion_tokens=1024,
+                    response_format={"type": "json_object"}
+                )
+                
+                response = completion.choices[0].message.content
+                response_json = json.loads(response)
+                correct_answers = response_json.get("correct_answers", [])
             
             if isinstance(correct_answers, list):
                 all_responses.append(correct_answers)
@@ -134,15 +180,35 @@ def process_image_question(image_url: str, api_key: str = None) -> List[str]:
     
     return most_common_answers
 
-week = int(input("Enter Week: "))
+def get_image_url(course_code: str, week: int, question_num: int, try_uppercase: bool = False) -> str:
+    """
+    Generate the image URL for a given course, week, and question number.
+    
+    Args:
+        course_code (str): Course code (e.g., 'noc26_cs55' or 'noc26-cs55')
+        week (int): Week number
+        question_num (int): Question number (1-10)
+        try_uppercase (bool): Deprecated, kept for backward compatibility
+    
+    Returns:
+        str: Image URL in format: https://storage.googleapis.com/swayam-node1-production.appspot.com/assets/img/{course_code}/a{week}q{question_num}.JPG
+    """
+    # Ensure course code uses underscores (not hyphens) in the URL
+    course_code_normalized = course_code.replace('-', '_')
+    return f"https://storage.googleapis.com/swayam-node1-production.appspot.com/assets/img/{course_code_normalized}/a{week}q{question_num}.JPG"
 
 
-for i in range(1, 11):
-    sample_image_url = f"https://storage.googleapis.com/swayam-node1-production.appspot.com/assets/img/noc25_cs107/w{week}q{i}.PNG"
-
-    try:
-        result = process_image_question(sample_image_url)
-        print(f"Most common correct answer(s) for {i}:", result)
-    except Exception as e:
-        print(f"Error: {str(e)}")
+if __name__ == "__main__":
+    # CLI mode for backward compatibility
+    week = int(input("Enter Week: "))
+    course_code = "noc26_cs55"  # Default course
+    
+    for i in range(1, 11):
+        sample_image_url = get_image_url(course_code, week, i)
+        
+        try:
+            result = process_image_question(sample_image_url)
+            print(f"Most common correct answer(s) for {i}:", result)
+        except Exception as e:
+            print(f"Error: {str(e)}")
 

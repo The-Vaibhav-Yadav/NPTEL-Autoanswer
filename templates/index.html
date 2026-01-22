@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPTEL Auto Answer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .search-section {
+            margin-bottom: 30px;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 15px 50px 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+        }
+
+        .results-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            display: none;
+            background: white;
+            position: absolute;
+            width: 100%;
+            z-index: 100;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .results-container.show {
+            display: block;
+        }
+
+        .course-item {
+            padding: 15px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+        }
+
+        .course-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .course-item:last-child {
+            border-bottom: none;
+        }
+
+        .course-code {
+            font-weight: bold;
+            color: #667eea;
+            margin-right: 10px;
+        }
+
+        .course-name {
+            color: #333;
+        }
+
+        .selected-course {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f7ff;
+            border-left: 4px solid #667eea;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .selected-course.show {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .questions-section {
+            margin-top: 40px;
+            display: none;
+        }
+
+        .questions-section.show {
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .question-card {
+            background: #f9f9f9;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s;
+        }
+
+        .question-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.1);
+        }
+
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .question-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .question-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .question-status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .question-status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .question-status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .question-image {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto 20px;
+            display: block;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-section {
+            background: #f0f7ff;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            margin-top: 15px;
+        }
+
+        .answer-label {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .answer-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .error {
+            background: #ffe0e0;
+            color: #d32f2f;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #d32f2f;
+            font-size: 14px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 NPTEL Auto Answer</h1>
+        
+        <div class="search-section">
+            <div class="search-container">
+                <input 
+                    type="text" 
+                    id="courseSearch" 
+                    class="search-input" 
+                    placeholder="Search for a course..."
+                    autocomplete="off"
+                >
+                <span class="search-icon">🔍</span>
+                <div id="searchResults" class="results-container"></div>
+            </div>
+            
+            <div id="selectedCourse" class="selected-course">
+                <strong>Selected Course:</strong> 
+                <span id="selectedCourseName"></span> 
+                (<span id="selectedCourseID"></span>)
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="weekInput">Week Number:</label>
+            <input 
+                type="number" 
+                id="weekInput" 
+                min="1" 
+                placeholder="Enter week number"
+            >
+        </div>
+
+        <button id="getAnswersBtn" class="btn" disabled>Get All Answers</button>
+
+        <div id="questionsSection" class="questions-section">
+            <div id="progressBar" class="progress-bar" style="display: none;">
+                <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Processing all questions with AI models...</p>
+                <p id="loadingStatus" style="margin-top: 10px; font-size: 14px; color: #666;"></p>
+            </div>
+            
+            <div id="questionsContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedCourse = null;
+        let allCourses = [];
+
+        // Load courses on page load
+        fetch('/api/courses')
+            .then(res => res.json())
+            .then(courses => {
+                allCourses = courses;
+            })
+            .catch(err => console.error('Error loading courses:', err));
+
+        // Course search functionality
+        const courseSearch = document.getElementById('courseSearch');
+        const searchResults = document.getElementById('searchResults');
+        const selectedCourseDiv = document.getElementById('selectedCourse');
+        const selectedCourseName = document.getElementById('selectedCourseName');
+        const selectedCourseID = document.getElementById('selectedCourseID');
+        const weekInput = document.getElementById('weekInput');
+        const getAnswersBtn = document.getElementById('getAnswersBtn');
+        const questionsSection = document.getElementById('questionsSection');
+        const questionsContainer = document.getElementById('questionsContainer');
+        const loading = document.getElementById('loading');
+        const loadingStatus = document.getElementById('loadingStatus');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+
+        courseSearch.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            
+            if (query.length < 2) {
+                searchResults.classList.remove('show');
+                return;
+            }
+
+            fetch(`/api/courses?q=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(courses => {
+                    if (courses.length === 0) {
+                        searchResults.innerHTML = '<div class="course-item">No courses found</div>';
+                    } else {
+                        searchResults.innerHTML = courses.map(course => `
+                            <div class="course-item" data-id="${course['Course ID'] || course.Course_ID || ''}" data-name="${course['Course Name'] || course.Course_Name || ''}">
+                                <span class="course-code">${course['Course ID'] || course.Course_ID || ''}</span>
+                                <span class="course-name">${course['Course Name'] || course.Course_Name || ''}</span>
+                            </div>
+                        `).join('');
+                    }
+                    searchResults.classList.add('show');
+                })
+                .catch(err => {
+                    console.error('Error searching courses:', err);
+                    searchResults.innerHTML = '<div class="course-item">Error searching courses</div>';
+                    searchResults.classList.add('show');
+                });
+        });
+
+        // Handle course selection
+        searchResults.addEventListener('click', (e) => {
+            const courseItem = e.target.closest('.course-item');
+            if (courseItem) {
+                selectedCourse = {
+                    id: courseItem.dataset.id,  // Use Course ID, not Course Code
+                    name: courseItem.dataset.name
+                };
+                selectedCourseName.textContent = selectedCourse.name;
+                selectedCourseID.textContent = selectedCourse.id;  // Display Course ID
+                selectedCourseDiv.classList.add('show');
+                courseSearch.value = '';
+                searchResults.classList.remove('show');
+                updateButtonState();
+            }
+        });
+
+        // Close search results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!courseSearch.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.remove('show');
+            }
+        });
+
+        // Update button state
+        function updateButtonState() {
+            const week = weekInput.value.trim();
+            getAnswersBtn.disabled = !selectedCourse || !week;
+        }
+
+        weekInput.addEventListener('input', updateButtonState);
+
+        // Get all answers
+        getAnswersBtn.addEventListener('click', () => {
+            const week = parseInt(weekInput.value);
+            
+            if (!selectedCourse || !week) {
+                return;
+            }
+
+            // Clear previous results
+            questionsContainer.innerHTML = '';
+            questionsSection.classList.add('show');
+            loading.style.display = 'block';
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            getAnswersBtn.disabled = true;
+
+            // Create placeholder cards for all questions
+            for (let i = 1; i <= 10; i++) {
+                const card = createQuestionCard(i, null, null, 'loading');
+                questionsContainer.appendChild(card);
+            }
+
+            // Fetch all questions
+            fetch('/api/questions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    course_id: selectedCourse.id,  // Use Course ID, not Course Code
+                    week: week
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                loading.style.display = 'none';
+                progressBar.style.display = 'none';
+                getAnswersBtn.disabled = false;
+
+                if (data.success && data.results) {
+                    // Update each question card
+                    data.results.forEach((result, index) => {
+                        const card = questionsContainer.children[index];
+                        updateQuestionCard(card, result);
+                    });
+                } else {
+                    questionsContainer.innerHTML = '<div class="error">Error loading questions. Please try again.</div>';
+                }
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                progressBar.style.display = 'none';
+                getAnswersBtn.disabled = false;
+                questionsContainer.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+            });
+        });
+
+        function createQuestionCard(questionNum, imageUrl, answer, status) {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+            card.innerHTML = `
+                <div class="question-header">
+                    <div class="question-number">Question ${questionNum}</div>
+                    <div class="question-status ${status}">
+                        ${status === 'loading' ? 'Processing...' : status === 'success' ? '✓ Complete' : '✗ Error'}
+                    </div>
+                </div>
+                ${imageUrl ? `<img src="${imageUrl}" class="question-image" alt="Question ${questionNum}" onerror="this.style.display='none'">` : ''}
+                ${status === 'loading' ? '<div class="loading"><div class="spinner"></div></div>' : ''}
+                ${answer ? `
+                    <div class="answer-section">
+                        <div class="answer-label">Correct Answer:</div>
+                        <div class="answer-value">${answer}</div>
+                    </div>
+                ` : ''}
+            `;
+            return card;
+        }
+
+        function updateQuestionCard(card, result) {
+            const imageUrl = result.image_url;
+            const answers = result.answers || [];
+            const answerText = answers.length > 0 ? answers.join(', ') : 'No answer found';
+            const status = result.success ? 'success' : 'error';
+            
+            card.innerHTML = `
+                <div class="question-header">
+                    <div class="question-number">Question ${result.question_num}</div>
+                    <div class="question-status ${status}">
+                        ${status === 'success' ? '✓ Complete' : '✗ Error'}
+                    </div>
+                </div>
+                <img src="${imageUrl}" class="question-image" alt="Question ${result.question_num}" onerror="this.style.display='none'">
+                ${result.success ? `
+                    <div class="answer-section">
+                        <div class="answer-label">Correct Answer:</div>
+                        <div class="answer-value">${answerText}</div>
+                    </div>
+                ` : `
+                    <div class="error">
+                        Error: ${result.error || 'Unknown error'}
+                    </div>
+                `}
+            `;
+        }
+    </script>
+</body>
+</html>
